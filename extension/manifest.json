@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Obsidian AI Bridge",
+  "version": "1.0.0",
+  "description": "High-fidelity capture for DeepSeek & Doubao to Obsidian",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:27124/*",
+    "https://chat.deepseek.com/*",
+    "https://www.doubao.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chat.deepseek.com/*", "https://www.doubao.com/*"],
+      "js": ["lib/turndown.js", "lib/turndown-setup.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
