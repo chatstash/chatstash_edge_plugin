@@ -1,6 +1,7 @@
 // extension/background.js
 
 // Configuration defaults
+
 const DEFAULT_API_BASE = "http://127.0.0.1";
 const DEFAULT_PORT = 27124;
 
