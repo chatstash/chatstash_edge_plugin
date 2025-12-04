@@ -8,10 +8,11 @@ const DEFAULT_PORT = 27124;
 // Helper to get configuration
 async function getConfig() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort'], (items) => {
+        chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort', 'obsidianUseHttps'], (items) => {
             resolve({
                 apiKey: items.obsidianApiKey, // User must set this
-                port: items.obsidianApiPort || DEFAULT_PORT
+                port: items.obsidianApiPort || DEFAULT_PORT,
+                useHttps: items.obsidianUseHttps || false
             });
         });
     });
@@ -25,7 +26,10 @@ async function obsidianRequest(endpoint, method, body, isBinary = false) {
       throw new Error("Obsidian API Key not set. Please configure in extension settings.");
   }
 
-  const baseUrl = `${DEFAULT_API_BASE}:${config.port}`;
+  const protocol = config.useHttps ? "https" : "http";
+  // DEFAULT_API_BASE is "http://127.0.0.1", we need to strip http:// if we are constructing it
+  const host = "127.0.0.1";
+  const baseUrl = `${protocol}://${host}:${config.port}`;
 
   const headers = {
     "Authorization": `Bearer ${config.apiKey}`

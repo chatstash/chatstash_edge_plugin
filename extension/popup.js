@@ -43,10 +43,12 @@ document.getElementById('toggleSettings').addEventListener('click', () => {
 document.getElementById('saveSettings').addEventListener('click', () => {
     const apiKey = document.getElementById('apiKey').value;
     const apiPort = document.getElementById('apiPort').value;
+    const useHttps = document.getElementById('useHttps').checked;
 
     chrome.storage.local.set({
         obsidianApiKey: apiKey,
-        obsidianApiPort: apiPort
+        obsidianApiPort: apiPort,
+        obsidianUseHttps: useHttps
     }, () => {
         const status = document.getElementById('status');
         status.textContent = 'Settings saved.';
@@ -56,12 +58,15 @@ document.getElementById('saveSettings').addEventListener('click', () => {
 });
 
 function restoreSettings() {
-    chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort'], (items) => {
+    chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort', 'obsidianUseHttps'], (items) => {
         if (items.obsidianApiKey) {
             document.getElementById('apiKey').value = items.obsidianApiKey;
         }
         if (items.obsidianApiPort) {
             document.getElementById('apiPort').value = items.obsidianApiPort;
+        }
+        if (items.obsidianUseHttps) {
+            document.getElementById('useHttps').checked = items.obsidianUseHttps;
         }
     });
 }
