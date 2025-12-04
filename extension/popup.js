@@ -62,6 +62,11 @@ document.getElementById('saveSettings').addEventListener('click', () => {
     });
 });
 
+document.getElementById('closeSettings').addEventListener('click', () => {
+    document.getElementById('settingsPanel').style.display = 'none';
+    document.getElementById('toggleSettings').textContent = 'Settings';
+});
+
 function restoreSettings() {
     chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort', 'obsidianSaveDir', 'obsidianUseHttps'], (items) => {
         if (items.obsidianApiKey) {
