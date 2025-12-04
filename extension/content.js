@@ -1,72 +1,176 @@
 // extension/content.js
 
-// This script injects into the page.
-// In a real extension, we would import createCustomTurndownService.
-// Here we assume it's loaded.
+// Initialize Turndown
+// Note: 'TurndownService' is injected via lib/turndown.js and createCustomTurndownService via lib/turndown-service.js
 
-// Configuration (Managed via Popup in real life)
-const CONFIG = {
-    apiKey: "test_key_123", // Placeholder
-    port: 27124
-};
-
-function getTurndownService() {
-    // In the real extension, TurndownService is available via a library script in manifest
-    // For this mock content script, we rely on the global scope or bundle.
-    // If running in Node test, we inject it.
-    if (typeof createCustomTurndownService === 'function') {
-        // We need the actual TurndownService constructor.
-        // In browser: window.TurndownService
-        // In node: require('turndown')
-        const Turndown = (typeof TurndownService !== 'undefined') ? TurndownService : window.TurndownService;
-        return createCustomTurndownService(Turndown);
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "SCRAPE_PAGE") {
+        scrapePage()
+            .then(payload => {
+                chrome.runtime.sendMessage({ action: "SAVE_PAYLOAD", payload: payload }, (response) => {
+                    if (response && response.status === 'success') {
+                        sendResponse({ status: 'success' });
+                    } else {
+                        sendResponse({ status: 'error', message: response ? response.message : "Unknown background error" });
+                    }
+                });
+            })
+            .catch(err => {
+                console.error("Scraping failed:", err);
+                sendResponse({ status: 'error', message: err.message });
+            });
+        return true; // Async response
     }
-    return null;
-}
+});
 
-function extractChatContent() {
-    const service = getTurndownService();
-    if (!service) {
-        console.error("Turndown service not initialized");
-        return null;
+async function scrapePage() {
+    const platform = detectPlatform();
+    console.log("Detected Platform:", platform);
+
+    const title = getTitle(platform);
+    const container = getContentContainer(platform);
+
+    if (!container) {
+        throw new Error("Could not find content container. Please ensure the chat is visible.");
     }
 
-    // 1. Identify the Main Chat Container
-    // This selector needs to be robust.
-    // DeepSeek: often a specific ID or main role.
-    // Fallback: document.body
-    const mainContainer = document.querySelector('main') || document.body;
+    // Clone to avoid modifying the active page
+    const clone = container.cloneNode(true);
+    const assets = [];
 
-    // 2. Clone to avoid modifying the page
-    // We clone so we can manipulate DOM (remove noise) before converting
-    const clone = mainContainer.cloneNode(true);
+    // Process Images
+    const images = clone.querySelectorAll('img');
+    for (let i = 0; i < images.length; i++) {
+        const img = images[i];
 
-    // 3. Convert to Markdown
-    const markdown = service.turndown(clone);
+        // Filter out small icons/avatars (heuristic)
+        if (img.width < 100 && img.height < 100) continue;
 
-    // 4. Post-processing (Metadata, Title)
-    const title = document.title || "AI Chat Export";
-    const header = `# ${title}\n\nDate: ${new Date().toISOString()}\n\n---\n\n`;
+        // Skip if src is missing or empty
+        if (!img.src) continue;
 
-    return header + markdown;
-}
+        try {
+            const base64 = await imageToBase64(img.src);
+            if (base64) {
+                const ext = getExtensionFromSrc(img.src) || 'png';
+                // Unique filename
+                const filename = `img_${Date.now()}_${i}.${ext}`;
 
-// Message Listener (Triggered by Background script or Popup)
-if (typeof chrome !== 'undefined' && chrome.runtime) {
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        if (request.type === 'EXTRACT_CONTENT') {
-            try {
-                const md = extractChatContent();
-                sendResponse({ status: 'success', data: md });
-            } catch (e) {
-                sendResponse({ status: 'error', message: e.toString() });
+                assets.push({
+                    filename: filename,
+                    base64: base64
+                });
+
+                // Update src to relative path for Obsidian
+                img.src = `attachments/${filename}`;
+                img.alt = filename;
+
+                // Add a marker class to ensure we can identify it if needed,
+                // though Turndown usually handles <img> tags fine.
             }
+        } catch (e) {
+            console.warn("Failed to process image:", img.src, e);
         }
-        return true;
+    }
+
+    const turndownService = createCustomTurndownService(TurndownService);
+    let markdown = turndownService.turndown(clone);
+
+    // Post-process: specific fixes
+    // 1. Obsidian Image Links: ![alt](attachments/filename) -> ![[filename]]
+    markdown = markdown.replace(/!\[.*?\]\(attachments\/(.*?)\)/g, '![[$1]]');
+
+    // 2. Remove multiple blank lines
+    markdown = markdown.replace(/\n{3,}/g, '\n\n');
+
+    return {
+        url: window.location.href,
+        platform: platform,
+        title: title,
+        content: markdown,
+        assets: assets
+    };
+}
+
+function detectPlatform() {
+    const host = window.location.hostname;
+    if (host.includes('deepseek')) return 'deepseek';
+    if (host.includes('doubao')) return 'doubao';
+    if (host.includes('chatgpt')) return 'chatgpt';
+    if (host.includes('gemini') || host.includes('google')) return 'gemini';
+    return 'unknown';
+}
+
+function getTitle(platform) {
+    // Try to find a chat title in the DOM
+    if (platform === 'deepseek') {
+        const titleEl = document.querySelector('title'); // Often dynamic
+        return titleEl ? titleEl.innerText : "DeepSeek Chat";
+    }
+    return document.title || "Saved Chat";
+}
+
+function getContentContainer(platform) {
+    if (platform === 'deepseek') {
+        // Look for the main chat area
+        // Fallback: document.body
+        return document.querySelector('#root') || document.body;
+    }
+    if (platform === 'doubao') {
+        // Doubao: Try to find the message list container
+        // Strategy: Look for a container that has many children with text
+        // Or specific ID 'root' or 'app'
+        const app = document.querySelector('#app') || document.querySelector('#root');
+        if (app) return app;
+
+        // Strategy from prompt: "Find avatar img -> parent -> sibling"
+        // This is brittle without actual DOM access to test.
+        // Fallback to body.
+        return document.body;
+    }
+    if (platform === 'chatgpt') {
+         // ChatGPT usually puts chat in main
+         return document.querySelector('main') || document.body;
+    }
+    return document.body;
+}
+
+function imageToBase64(url) {
+    return new Promise((resolve, reject) => {
+        if (url.startsWith('data:')) {
+            resolve(url);
+            return;
+        }
+
+        // Try fetch
+        fetch(url)
+            .then(response => response.blob())
+            .then(blob => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            })
+            .catch(err => {
+                console.warn("Direct fetch failed for", url, err);
+                resolve(null);
+            });
     });
 }
 
-// Export for testing
-if (typeof module !== 'undefined') {
-    module.exports = { extractChatContent };
+function getExtensionFromSrc(src) {
+    try {
+        const url = new URL(src);
+        const path = url.pathname;
+        if (path.endsWith('.png')) return 'png';
+        if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'jpg';
+        if (path.endsWith('.webp')) return 'webp';
+        if (path.endsWith('.gif')) return 'gif';
+    } catch (e) {
+        // ignore
+    }
+    if (src.includes('data:image/png')) return 'png';
+    if (src.includes('data:image/jpeg')) return 'jpg';
+    if (src.includes('data:image/webp')) return 'webp';
+    return 'png';
 }

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { width: 300px; padding: 15px; font-family: sans-serif; }
+    h3 { margin-top: 0; }
+    .form-group { margin-bottom: 10px; }
+    label { display: block; font-size: 12px; margin-bottom: 5px; }
+    input { width: 100%; padding: 5px; box-sizing: border-box; }
+    button { width: 100%; padding: 8px; margin-top: 10px; cursor: pointer; background-color: #7b3cad; color: white; border: none; border-radius: 4px; }
+    button:hover { background-color: #5a2c80; }
+    button.secondary { background-color: #eee; color: #333; margin-top: 5px; }
+    #status { margin-top: 10px; font-size: 12px; color: #666; word-break: break-all; }
+    .error { color: red; }
+    .success { color: green; }
+    #settingsPanel { display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
+  </style>
+</head>
+<body>
+  <h3>Obsidian Bridge</h3>
+
+  <button id="scrapeBtn">Save Chat to Obsidian</button>
+  <button id="toggleSettings" class="secondary">Settings</button>
+
+  <div id="settingsPanel">
+      <div class="form-group">
+          <label for="apiKey">Obsidian API Key</label>
+          <input type="password" id="apiKey" placeholder="Copy from Obsidian plugin">
+      </div>
+      <div class="form-group">
+          <label for="apiPort">Local Server Port</label>
+          <input type="number" id="apiPort" placeholder="27124" value="27124">
+      </div>
+      <button id="saveSettings">Save Settings</button>
+  </div>
+
+  <div id="status">Ready</div>
+  <script src="popup.js"></script>
+</body>
+</html>

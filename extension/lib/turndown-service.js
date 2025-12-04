@@ -76,9 +76,11 @@ function createCustomTurndownService(TurndownService) {
     service.addRule('deepseek-thinking', {
         filter: function (node) {
             // Detect thinking container by class or specific structure
-            // Note: Update these selectors based on actual DOM inspection of DeepSeek
+            // Update these selectors based on actual DOM inspection of DeepSeek
+            // Added 'thinking-content' as another potential class
             return node.classList.contains('ds-thinking') ||
-                   (node.classList.contains('thinking-process'));
+                   node.classList.contains('thinking-process') ||
+                   node.classList.contains('thinking-content');
         },
         replacement: function (content, node) {
             // Create an Obsidian Callout
