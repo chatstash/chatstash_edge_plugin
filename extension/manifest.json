@@ -8,7 +8,8 @@
     "activeTab"
   ],
   "host_permissions": [
-    "http://127.0.0.1:27124/*",
+    "http://127.0.0.1/*",
+    "https://127.0.0.1/*",
     "https://chat.deepseek.com/*",
     "https://www.doubao.com/*"
   ],
