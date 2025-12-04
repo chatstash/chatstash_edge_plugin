@@ -42,11 +42,13 @@ document.getElementById('toggleSettings').addEventListener('click', () => {
 
 document.getElementById('saveSettings').addEventListener('click', () => {
     const apiKey = document.getElementById('apiKey').value;
-    const apiPort = document.getElementById('apiPort').value;
+    const baseUrl = document.getElementById('baseUrl').value;
+    const saveFolder = document.getElementById('saveFolder').value;
 
     chrome.storage.local.set({
         obsidianApiKey: apiKey,
-        obsidianApiPort: apiPort
+        obsidianBaseUrl: baseUrl,
+        obsidianSaveFolder: saveFolder
     }, () => {
         const status = document.getElementById('status');
         status.textContent = 'Settings saved.';
@@ -56,12 +58,15 @@ document.getElementById('saveSettings').addEventListener('click', () => {
 });
 
 function restoreSettings() {
-    chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort'], (items) => {
+    chrome.storage.local.get(['obsidianApiKey', 'obsidianBaseUrl', 'obsidianSaveFolder'], (items) => {
         if (items.obsidianApiKey) {
             document.getElementById('apiKey').value = items.obsidianApiKey;
         }
-        if (items.obsidianApiPort) {
-            document.getElementById('apiPort').value = items.obsidianApiPort;
+        if (items.obsidianBaseUrl) {
+            document.getElementById('baseUrl').value = items.obsidianBaseUrl;
+        }
+        if (items.obsidianSaveFolder) {
+            document.getElementById('saveFolder').value = items.obsidianSaveFolder;
         }
     });
 }
