@@ -1,39 +1,20 @@
 // extension/background.js
 
 // Configuration defaults
-const DEFAULT_HOST = "127.0.0.1";
+
+const DEFAULT_API_BASE = "http://127.0.0.1";
 const DEFAULT_PORT = 27124;
 
 // Helper to get configuration
 async function getConfig() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort', 'obsidianSaveDir', 'obsidianUseHttps'], (items) => {
+        chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort'], (items) => {
             resolve({
-                apiKey: items.obsidianApiKey,
-                port: items.obsidianApiPort || DEFAULT_PORT,
-                saveDir: items.obsidianSaveDir || "",
-                useHttps: items.obsidianUseHttps || false
+                apiKey: items.obsidianApiKey, // User must set this
+                port: items.obsidianApiPort || DEFAULT_PORT
             });
         });
     });
-}
-
-// Helper to sanitize filename
-function sanitizeFilename(name) {
-    return name.replace(/[\\/:*?"<>|]/g, "-").trim();
-}
-
-// Helper to construct path
-function joinPath(dir, filename) {
-    if (!dir) return filename;
-    // Normalize slashes
-    let path = dir.replace(/\\/g, '/');
-    // Remove leading/trailing slashes from dir to avoid double slashes or root confusion
-    path = path.replace(/^\/+|\/+$/g, '');
-
-    if (path.length === 0) return filename;
-
-    return `${path}/${filename}`;
 }
 
 // Helper to make requests to Obsidian
@@ -41,40 +22,27 @@ async function obsidianRequest(endpoint, method, body, isBinary = false) {
   const config = await getConfig();
 
   if (!config.apiKey) {
-      throw new Error("Obsidian API Key not set. Please configure in Settings.");
+      throw new Error("Obsidian API Key not set. Please configure in extension settings.");
   }
 
-  const protocol = config.useHttps ? "https" : "http";
-  const baseUrl = `${protocol}://${DEFAULT_HOST}:${config.port}`;
-
-  // Clean endpoint ensuring it starts with /
-  if (!endpoint.startsWith('/')) endpoint = '/' + endpoint;
+  const baseUrl = `${DEFAULT_API_BASE}:${config.port}`;
 
   const headers = {
     "Authorization": `Bearer ${config.apiKey}`
   };
 
-  try {
-      const response = await fetch(`${baseUrl}${endpoint}`, {
-        method: method,
-        headers: headers,
-        body: body
-      });
+  // Note: Local REST API plugin usually handles content-type detection or expects raw
 
-      if (!response.ok) {
-        if (response.status === 401) {
-            throw new Error("Unauthorized (401). Check your API Key.");
-        }
-        throw new Error(`Obsidian API Error: ${response.status} ${response.statusText}`);
-      }
-      return response;
-  } catch (error) {
-      // Catch network errors (e.g., Failed to fetch)
-      if (error.message.includes("Failed to fetch")) {
-          throw new Error(`Connection failed. Is Obsidian running? Is the Local REST API plugin enabled? (Tried: ${baseUrl})`);
-      }
-      throw error;
+  const response = await fetch(`${baseUrl}${endpoint}`, {
+    method: method,
+    headers: headers,
+    body: body
+  });
+
+  if (!response.ok) {
+    throw new Error(`Obsidian API Error: ${response.status} ${response.statusText}`);
   }
+  return response;
 }
 
 // Convert Base64 to Blob/Uint8Array
@@ -99,20 +67,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 async function handleSavePayload(payload) {
-  const config = await getConfig();
   console.log("Processing payload for:", payload.title);
 
   // 1. Upload Assets (Images)
-  // Assets should probably go into an 'attachments' subfolder relative to the save dir?
-  // Or just global attachments?
-  // Usually Obsidian users have a preference. For now, let's put them in 'attachments/' relative to the vault root
-  // OR relative to the note if we want to get fancy.
-  // Standard Obsidian Local REST API maps /vault/... to file system.
-  // Let's stick to /vault/attachments/ for images to keep them organized,
-  // regardless of where the note goes.
-  // IMPROVEMENT: If user sets a Save Dir, maybe put images in Save Dir/attachments?
-  // Let's keep it simple: /vault/attachments/ is a safe default.
-
   if (payload.assets && payload.assets.length > 0) {
     for (const asset of payload.assets) {
       try {
@@ -122,18 +79,15 @@ async function handleSavePayload(payload) {
         await obsidianRequest(`/vault/attachments/${asset.filename}`, 'PUT', binaryData, true);
       } catch (err) {
         console.error(`Failed to upload asset ${asset.filename}:`, err);
-        // Continue anyway
+        // Continue anyway? Or fail? Let's continue to save the text at least.
       }
     }
   }
 
   // 2. Upload Markdown Note
-  const safeTitle = sanitizeFilename(payload.title);
+  // Sanitize filename
+  const safeTitle = payload.title.replace(/[\\/:*?"<>|]/g, "-").trim();
   const filename = `${safeTitle}.md`;
-
-  // Construct path based on user setting
-  // e.g. /vault/MyFolder/MyNote.md
-  const relativePath = joinPath(config.saveDir, filename);
 
   // Construct final Markdown content
   const frontmatter = `---
@@ -148,6 +102,6 @@ date: ${new Date().toISOString()}
 
   const finalContent = frontmatter + payload.content;
 
-  console.log(`Saving note to: ${relativePath}`);
-  await obsidianRequest(`/vault/${relativePath}`, 'PUT', finalContent);
+  console.log(`Saving note: ${filename}`);
+  await obsidianRequest(`/vault/${filename}`, 'PUT', finalContent);
 }
