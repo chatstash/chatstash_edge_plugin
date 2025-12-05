@@ -2,7 +2,6 @@
 
 // Configuration defaults
 const DEFAULT_BASE_URL = "https://127.0.0.1:27124/";
-const DEFAULT_PORT = 27124; // Keeping for backward compatibility if needed, but mostly unused now
 
 // Helper to get configuration
 async function getConfig() {
@@ -21,7 +20,8 @@ async function getConfig() {
             resolve({
                 apiKey: items.obsidianApiKey,
                 baseUrl: baseUrl || DEFAULT_BASE_URL,
-                saveFolder: items.obsidianSaveFolder || ""
+                saveFolder: items.obsidianSaveFolder || "",
+                useHttps: items.obsidianUseHttps // Maybe unused if baseUrl is authoritative
             });
         });
     });

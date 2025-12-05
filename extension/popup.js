@@ -15,11 +15,6 @@ document.getElementById('scrapeBtn').addEventListener('click', async () => {
         throw new Error("No active tab found");
       }
 
-      // Check for restricted URLs (like chrome://)
-      if (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:') || tab.url.startsWith('chrome-extension://')) {
-          throw new Error("Cannot save from this page. Please navigate to a supported chat site (DeepSeek, Doubao, etc).");
-      }
-
       // Trigger scraping in content script
       try {
           const response = await chrome.tabs.sendMessage(tab.id, { action: "SCRAPE_PAGE" });
@@ -74,11 +69,13 @@ document.getElementById('saveSettings').addEventListener('click', () => {
     const apiKey = document.getElementById('apiKey').value;
     const baseUrl = document.getElementById('baseUrl').value;
     const saveFolder = document.getElementById('saveFolder').value;
+    const useHttps = document.getElementById('useHttps').checked;
 
     chrome.storage.local.set({
         obsidianApiKey: apiKey,
         obsidianBaseUrl: baseUrl,
-        obsidianSaveFolder: saveFolder
+        obsidianSaveFolder: saveFolder,
+        obsidianUseHttps: useHttps
     }, () => {
         const status = document.getElementById('status');
         status.textContent = 'Settings saved.';
@@ -88,7 +85,7 @@ document.getElementById('saveSettings').addEventListener('click', () => {
 });
 
 function restoreSettings() {
-    chrome.storage.local.get(['obsidianApiKey', 'obsidianBaseUrl', 'obsidianSaveFolder'], (items) => {
+    chrome.storage.local.get(['obsidianApiKey', 'obsidianBaseUrl', 'obsidianSaveFolder', 'obsidianUseHttps'], (items) => {
         if (items.obsidianApiKey) {
             document.getElementById('apiKey').value = items.obsidianApiKey;
         }
@@ -97,6 +94,9 @@ function restoreSettings() {
         }
         if (items.obsidianSaveFolder) {
             document.getElementById('saveFolder').value = items.obsidianSaveFolder;
+        }
+        if (items.obsidianUseHttps !== undefined) {
+             document.getElementById('useHttps').checked = items.obsidianUseHttps;
         }
     });
 }
