@@ -1,17 +1,27 @@
 // extension/background.js
 
 // Configuration defaults
-
 const DEFAULT_BASE_URL = "https://127.0.0.1:27124/";
+const DEFAULT_PORT = 27124; // Keeping for backward compatibility if needed, but mostly unused now
 
 // Helper to get configuration
 async function getConfig() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort', 'obsidianUseHttps'], (items) => {
+        chrome.storage.local.get(['obsidianApiKey', 'obsidianBaseUrl', 'obsidianSaveFolder', 'obsidianUseHttps', 'obsidianApiPort'], (items) => {
+            // Handle migration/fallback: if baseUrl is missing but port exists (old config), construct it?
+            // Or just default to DEFAULT_BASE_URL.
+
+            let baseUrl = items.obsidianBaseUrl;
+            if (!baseUrl && items.obsidianApiPort) {
+                // Fallback for old users who haven't updated settings yet
+                const protocol = items.obsidianUseHttps ? "https" : "http";
+                baseUrl = `${protocol}://127.0.0.1:${items.obsidianApiPort}`;
+            }
+
             resolve({
-                apiKey: items.obsidianApiKey, // User must set this
-                port: items.obsidianApiPort || DEFAULT_PORT,
-                useHttps: items.obsidianUseHttps || false
+                apiKey: items.obsidianApiKey,
+                baseUrl: baseUrl || DEFAULT_BASE_URL,
+                saveFolder: items.obsidianSaveFolder || ""
             });
         });
     });
@@ -25,27 +35,47 @@ async function obsidianRequest(endpoint, method, body, isBinary = false) {
       throw new Error("Obsidian API Key not set. Please configure in extension settings.");
   }
 
-  const protocol = config.useHttps ? "https" : "http";
-  // DEFAULT_API_BASE is "http://127.0.0.1", we need to strip http:// if we are constructing it
-  const host = "127.0.0.1";
-  const baseUrl = `${protocol}://${host}:${config.port}`;
+  // Ensure baseUrl does not end with /
+  let baseUrl = config.baseUrl;
+  if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.slice(0, -1);
+  }
+
+  // Ensure endpoint starts with /
+  if (!endpoint.startsWith('/')) {
+      endpoint = '/' + endpoint;
+  }
+
+  const url = baseUrl + endpoint;
 
   const headers = {
     "Authorization": `Bearer ${config.apiKey}`
   };
 
-  // Note: Local REST API plugin usually handles content-type detection or expects raw
+  try {
+      const response = await fetch(url, {
+        method: method,
+        headers: headers,
+        body: body
+      });
 
-  const response = await fetch(url, {
-    method: method,
-    headers: headers,
-    body: body
-  });
-
-  if (!response.ok) {
-    throw new Error(`Obsidian API Error: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Obsidian API Error: ${response.status} ${response.statusText}`);
+      }
+      return response;
+  } catch (error) {
+      console.error("Fetch Error:", error);
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+          let msg = `Connection failed to ${baseUrl}.`;
+          if (baseUrl.startsWith('https')) {
+              msg += " If using HTTPS, please ensure you have trusted the certificate by opening the Server URL in a browser tab.";
+          } else {
+              msg += " Please ensure Obsidian is running and the 'Server URL' is correct.";
+          }
+          throw new Error(msg);
+      }
+      throw error;
   }
-  return response;
 }
 
 // Convert Base64 to Blob/Uint8Array
@@ -82,12 +112,6 @@ async function handleSavePayload(payload) {
         console.log(`Uploading asset: ${asset.filename}`);
         const binaryData = base64ToUint8Array(asset.base64);
         // PUT /vault/attachments/{filename}
-        // Assets usually go to attachments folder, but we can also respect saveFolder if we want.
-        // For now, let's keep them in attachments/ or a subfolder of saveFolder?
-        // Standard Obsidian Local REST behavior: /vault/<path>.
-        // Let's put attachments in an 'attachments' subfolder relative to where we save the note?
-        // Or just keep global /vault/attachments/ for simplicity as before?
-        // Let's keep /vault/attachments/ for now to avoid breaking existing image links unless we rewrite them.
         await obsidianRequest(`/vault/attachments/${asset.filename}`, 'PUT', binaryData, true);
       } catch (err) {
         console.error(`Failed to upload asset ${asset.filename}:`, err);
@@ -98,20 +122,18 @@ async function handleSavePayload(payload) {
 
   // 2. Upload Markdown Note
   // Sanitize filename
-  const safeTitle = payload.title.replace(/[\\/:*?"<>|]/g, "-").trim();
+  // Also handle full-width colon and other common unicode punctuation that might be mapped to invalid chars
+  const safeTitle = payload.title
+      .replace(/[\uff1a]/g, "-") // Full-width colon
+      .replace(/[\\/:*?"<>|]/g, "-")
+      .trim();
 
   let filepath = `${safeTitle}.md`;
   if (saveFolder) {
       filepath = `${saveFolder}/${filepath}`;
   }
 
-  // Encode filepath components if needed, but fetch usually handles URL encoding.
-  // However, for the URL path, we should probably encode URI component if it contains spaces?
-  // The fetch API expects a valid URL.
-  // Obsidian Local REST API expects the path to be URL-encoded?
-  // Let's try to construct the URL path safely.
-  // If filepath is "My Folder/My Note.md", the URL should be ".../vault/My%20Folder/My%20Note.md".
-
+  // Encode filepath components
   const encodedFilepath = filepath.split('/').map(encodeURIComponent).join('/');
 
   // Construct final Markdown content
