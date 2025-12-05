@@ -62,8 +62,11 @@ function restoreSettings() {
         if (items.obsidianApiKey) {
             document.getElementById('apiKey').value = items.obsidianApiKey;
         }
-        if (items.obsidianApiPort) {
-            document.getElementById('apiPort').value = items.obsidianApiPort;
+        if (items.obsidianBaseUrl) {
+            document.getElementById('baseUrl').value = items.obsidianBaseUrl;
+        }
+        if (items.obsidianSaveFolder) {
+            document.getElementById('saveFolder').value = items.obsidianSaveFolder;
         }
         if (items.obsidianUseHttps) {
             document.getElementById('useHttps').checked = items.obsidianUseHttps;
