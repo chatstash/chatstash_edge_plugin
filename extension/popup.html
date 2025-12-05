@@ -28,8 +28,12 @@
           <input type="password" id="apiKey" placeholder="Copy from Obsidian plugin">
       </div>
       <div class="form-group">
-          <label for="apiPort">Local Server Port</label>
-          <input type="number" id="apiPort" placeholder="27124" value="27124">
+          <label for="baseUrl">Server URL</label>
+          <input type="text" id="baseUrl" placeholder="https://127.0.0.1:27124/" value="https://127.0.0.1:27124/">
+      </div>
+      <div class="form-group">
+          <label for="saveFolder">Save Folder</label>
+          <input type="text" id="saveFolder" placeholder="e.g. AI/Chats (optional)">
       </div>
       <button id="saveSettings">Save Settings</button>
   </div>
