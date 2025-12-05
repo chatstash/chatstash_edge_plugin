@@ -16,14 +16,43 @@ document.getElementById('scrapeBtn').addEventListener('click', async () => {
       }
 
       // Trigger scraping in content script
-      const response = await chrome.tabs.sendMessage(tab.id, { action: "SCRAPE_PAGE" });
+      try {
+          const response = await chrome.tabs.sendMessage(tab.id, { action: "SCRAPE_PAGE" });
+          if (response && response.status === 'success') {
+            statusDiv.textContent = 'Saved!';
+            statusDiv.className = 'success';
+          } else {
+            throw new Error(response?.message || 'Unknown error');
+          }
+      } catch (err) {
+          // Check specifically for connection error
+          if (err.message.includes("Receiving end does not exist") || err.message.includes("Could not establish connection")) {
+              // Attempt to inject script dynamically if missing
+              statusDiv.textContent = 'Injecting script...';
+              try {
+                  await chrome.scripting.executeScript({
+                      target: { tabId: tab.id },
+                      files: ['lib/turndown.js', 'lib/turndown-service.js', 'content.js']
+                  });
 
-      if (response && response.status === 'success') {
-        statusDiv.textContent = 'Saved!';
-        statusDiv.className = 'success';
-      } else {
-        throw new Error(response?.message || 'Unknown error');
+                  // Retry sending message
+                  const retryResponse = await chrome.tabs.sendMessage(tab.id, { action: "SCRAPE_PAGE" });
+                  if (retryResponse && retryResponse.status === 'success') {
+                      statusDiv.textContent = 'Saved!';
+                      statusDiv.className = 'success';
+                  } else {
+                      throw new Error(retryResponse?.message || 'Unknown error after injection');
+                  }
+
+              } catch (injectionErr) {
+                  console.error("Injection failed:", injectionErr);
+                  throw new Error("Please refresh the page and try again.");
+              }
+          } else {
+              throw err;
+          }
       }
+
     } catch (error) {
       statusDiv.textContent = 'Error: ' + error.message;
       statusDiv.className = 'error';
