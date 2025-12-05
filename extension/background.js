@@ -7,11 +7,11 @@ const DEFAULT_BASE_URL = "https://127.0.0.1:27124/";
 // Helper to get configuration
 async function getConfig() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['obsidianApiKey', 'obsidianBaseUrl', 'obsidianSaveFolder'], (items) => {
+        chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort', 'obsidianUseHttps'], (items) => {
             resolve({
                 apiKey: items.obsidianApiKey, // User must set this
-                baseUrl: items.obsidianBaseUrl || DEFAULT_BASE_URL,
-                saveFolder: items.obsidianSaveFolder || ""
+                port: items.obsidianApiPort || DEFAULT_PORT,
+                useHttps: items.obsidianUseHttps || false
             });
         });
     });
@@ -25,13 +25,10 @@ async function obsidianRequest(endpoint, method, body, isBinary = false) {
       throw new Error("Obsidian API Key not set. Please configure in extension settings.");
   }
 
-  // Ensure baseUrl ends with a slash if needed, or handle path joining carefully
-  let baseUrl = config.baseUrl;
-  if (baseUrl.endsWith('/')) {
-      baseUrl = baseUrl.slice(0, -1);
-  }
-
-  const url = `${baseUrl}${endpoint}`;
+  const protocol = config.useHttps ? "https" : "http";
+  // DEFAULT_API_BASE is "http://127.0.0.1", we need to strip http:// if we are constructing it
+  const host = "127.0.0.1";
+  const baseUrl = `${protocol}://${host}:${config.port}`;
 
   const headers = {
     "Authorization": `Bearer ${config.apiKey}`
