@@ -1,5 +1,7 @@
 // extension/content.js
 
+console.log("Obsidian Bridge Content Script Loaded");
+
 // Initialize Turndown
 // Note: 'TurndownService' is injected via lib/turndown.js and createCustomTurndownService via lib/turndown-service.js
 
