@@ -15,10 +15,6 @@ document.getElementById('scrapeBtn').addEventListener('click', async () => {
         throw new Error("No active tab found");
       }
 
-      // Get settings to pass to background or content?
-      // Actually, content script scrapes, background saves.
-      // Background needs the API key.
-
       // Trigger scraping in content script
       const response = await chrome.tabs.sendMessage(tab.id, { action: "SCRAPE_PAGE" });
 
@@ -42,12 +38,14 @@ document.getElementById('toggleSettings').addEventListener('click', () => {
 
 document.getElementById('saveSettings').addEventListener('click', () => {
     const apiKey = document.getElementById('apiKey').value;
-    const apiPort = document.getElementById('apiPort').value;
+    const baseUrl = document.getElementById('baseUrl').value;
+    const saveFolder = document.getElementById('saveFolder').value;
     const useHttps = document.getElementById('useHttps').checked;
 
     chrome.storage.local.set({
         obsidianApiKey: apiKey,
-        obsidianApiPort: apiPort,
+        obsidianBaseUrl: baseUrl,
+        obsidianSaveFolder: saveFolder,
         obsidianUseHttps: useHttps
     }, () => {
         const status = document.getElementById('status');
@@ -58,7 +56,7 @@ document.getElementById('saveSettings').addEventListener('click', () => {
 });
 
 function restoreSettings() {
-    chrome.storage.local.get(['obsidianApiKey', 'obsidianApiPort', 'obsidianUseHttps'], (items) => {
+    chrome.storage.local.get(['obsidianApiKey', 'obsidianBaseUrl', 'obsidianSaveFolder', 'obsidianUseHttps'], (items) => {
         if (items.obsidianApiKey) {
             document.getElementById('apiKey').value = items.obsidianApiKey;
         }
@@ -68,8 +66,8 @@ function restoreSettings() {
         if (items.obsidianSaveFolder) {
             document.getElementById('saveFolder').value = items.obsidianSaveFolder;
         }
-        if (items.obsidianUseHttps) {
-            document.getElementById('useHttps').checked = items.obsidianUseHttps;
+        if (items.obsidianUseHttps !== undefined) {
+             document.getElementById('useHttps').checked = items.obsidianUseHttps;
         }
     });
 }
